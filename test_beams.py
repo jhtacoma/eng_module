@@ -27,7 +27,7 @@ def test_calc_shear_modulus ():
     assert beams.calc_shear_modulus (nu_2, E_2) == 1518.75
    
 
-def test_euler_buckling_mode ():
+def test_euler_buckling_load ():
     # Column 1 - Value will be in Newtons
     l_1 = 5300 # mm
     E_1 = 200000 # MPa
@@ -39,8 +39,8 @@ def test_euler_buckling_mode ():
     E_2 = 3645 # ksi ("ksi" == "kips per square inch")
     I_2 = 5125.4 # inch**4
     k_2 = 2.0
-    assert beams.euler_buckling_mode (l_1, E_1, I_1, k_1) == 44411463.02234584
-    assert beams.euler_buckling_mode (l_2, E_2, I_2, k_2) == 1025.6361727834453
+    assert beams.euler_buckling_load (l_1, E_1, I_1, k_1) == 44411463.02234584
+    assert beams.euler_buckling_load (l_2, E_2, I_2, k_2) == 1025.6361727834453
    
 
 def test_beam_reactions_ss_cant ():

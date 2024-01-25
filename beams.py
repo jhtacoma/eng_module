@@ -24,7 +24,7 @@ def calc_shear_modulus (nu:float, E:float) -> float:
     shear_modulus:float = E / (2 * (1 + nu))
     return shear_modulus
 
-def euler_buckling_mode (
+def euler_buckling_load (
     l:float, 
     E:float, 
     I:float, 
