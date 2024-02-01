@@ -1,5 +1,8 @@
 import math
 import eng_module.beams as beams
+from importlib import reload
+reload (beams)
+
 
 def test_str_to_int ():
     string_1 = "43"
@@ -80,3 +83,28 @@ def test_FEModel_ss_cant ():
     ar1, ar2 = beams.beam_reactions_ss_cant (w_1, b_1, a_1)
     assert  round (ar1, 2) == r1
     assert  round (ar2, 2) == r2
+
+
+def test_separate_lines():
+    example_1_data = '4800, 200000, 437000000\n0, 3000\n-10'
+    example_2_data = '228, 28000, 756\n0, 114\n-15'
+    example_3_data = '6800, 200000, 803000000\n0, 3000\n18'
+    example_4_data = '8000, 28000, 756e6\n0, 7000\n-52'
+    assert beams.separate_lines(example_1_data) == ['4800, 200000, 437000000', '0, 3000', '-10']
+    assert beams.separate_lines(example_2_data) == ['228, 28000, 756', '0, 114', '-15']
+    assert beams.separate_lines(example_3_data) == ['6800, 200000, 803000000', '0, 3000', '18']
+    assert beams.separate_lines(example_4_data) == ['8000, 28000, 756e6', '0, 7000', '-52']
+
+
+def test_extract_data ():
+    assert beams.extract_data (['4800, 200000, 437000000', '0, 3000', '-10'], 1) == ['0', '3000']
+    assert beams.extract_data (['228, 28000, 756', '0, 114', '-15'], 0) == ['228', '28000', '756']
+    assert beams.extract_data (['6800, 200000, 803000000', '0, 3000', '18'], 2) == ['18']
+    assert beams.extract_data (['8000, 28000, 756e6', '0, 7000', '-52'], 0) == ['8000', '28000', '756e6']
+
+
+def test_get_spans ():
+    assert beams.get_spans (10, 7) == (7, 3)
+    assert beams.get_spans (4000, 2500) == (2500, 1500)
+
+
