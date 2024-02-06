@@ -63,28 +63,6 @@ def test_beam_reactions_ss_cant ():
     assert round (R1_2, 2), round (R2_2, 2)  == (3648.0, 0.0)
    
 
-def test_FEModel_ss_cant ():
-    # Beam 1
-    w_1 = 50 # kN/m (which is the same as N/mm)
-    b_1 = 4500 # mm
-    a_1 = 2350 # mm
-    E = 1
-    I = 1
-    A = 1
-    J = 1
-    nu = 1
-
-    model = beams.fe_model_ss_cant (w_1, b_1, a_1, E, I, A, J, nu)
-    model.analyze (check_statics=True)
-
-    r2 = round (model.Nodes ['N0'].RxnFY['Combo 1'], 2)
-    r1 = round (model.Nodes ['N1'].RxnFY['Combo 1'], 2)
-
-    ar1, ar2 = beams.beam_reactions_ss_cant (w_1, b_1, a_1)
-    assert  round (ar1, 2) == r1
-    assert  round (ar2, 2) == r2
-
-
 def test_separate_lines():
     example_1_data = '4800, 200000, 437000000\n0, 3000\n-10'
     example_2_data = '228, 28000, 756\n0, 114\n-15'
@@ -96,15 +74,37 @@ def test_separate_lines():
     assert beams.separate_lines(example_4_data) == ['8000, 28000, 756e6', '0, 7000', '-52']
 
 
-def test_extract_data ():
-    assert beams.extract_data (['4800, 200000, 437000000', '0, 3000', '-10'], 1) == ['0', '3000']
-    assert beams.extract_data (['228, 28000, 756', '0, 114', '-15'], 0) == ['228', '28000', '756']
-    assert beams.extract_data (['6800, 200000, 803000000', '0, 3000', '18'], 2) == ['18']
-    assert beams.extract_data (['8000, 28000, 756e6', '0, 7000', '-52'], 0) == ['8000', '28000', '756e6']
-
-
 def test_get_spans ():
     assert beams.get_spans (10, 7) == (7, 3)
     assert beams.get_spans (4000, 2500) == (2500, 1500)
 
 
+def test_separate_data ():
+    example_LIST = ['Roof beam', '4800, 19200, 1000000000', '0, 3000, 4800', '-100, 500, 4800', '-200, 3600, 4800']
+    assert beams.separate_data (example_LIST) == [['Roof beam'], ['4800', '19200', '1000000000'], ['0', '3000', '4800'], ['-100', '500', '4800'], ['-200', '3600', '4800']]
+
+
+def test_convert_to_numeric ():
+    example_LIST = [['4800', '19200', '1000000000'], ['0', '3000', '4800'], ['-100', '500', '4800'], ['-200', '3600', '4800']]
+    assert beams.convert_to_numeric (example_LIST) == [[4800.0, 19200.0, 1000000000.0], [0.0, 3000.0, 4800.0], [-100.0, 500.0, 4800.0], [-200.0, 3600.0, 4800.0]]
+
+
+def test_get_structured_beam_data ():
+    example_LIST = [['Roof beam'], ['4800', '19200', '1000000000'], ['0', '3000', '4800'], ['-100', '500', '4800'], ['-200', '3600', '4800']]
+    assert beams.get_structured_beam_data (example_LIST) == {
+        'Name': 'Roof beam',
+        'L': 4800.0,
+        'E': 19200.0,
+        'I': 1000000000.0,
+        'Supports': [0.0, 3000.0, 4800.0],
+        'Loads': [[-100.0, 500.0, 4800.0], [-200.0, 3600.0, 4800.0]]}
+    
+def test_get_node_locations ():
+    example_DICT = {
+        'Name': 'Roof beam',
+        'L': 4800.0,
+        'E': 19200.0,
+        'I': 1000000000.0,
+        'Supports': [0.0, 3000.0, 4800.0],
+        'Loads': [[-100.0, 500.0, 4800.0], [-200.0, 3600.0, 4800.0]]}
+    assert beams.get_node_locations (example_DICT['Supports']) == {'N0': 0.0, 'N1': 3000.0, 'N2': 4800.0}

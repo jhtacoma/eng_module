@@ -58,44 +58,6 @@ def beam_reactions_ss_cant (
     print (R1, R2)
     return -R1, -R2
 
-def fe_model_ss_cant (
-    w:float,
-    b:float,
-    a:float,
-    E:float,
-    I:float,
-    A:float,
-    J:float,
-    nu:float,
-    rho:float = 1.0,
-
-) -> FEModel3D:
-    '''
-    Returns a PyNite.FEModel3D model of a simply supported beam
-    with a cantilever on one end. The beam is loaded with a udl.
-
-    'w' - The magnitude of the distributed load
-    'b' - The length of the backspan
-    'a' - The length of the cantilever
-    'E' - The elastic modulus of the beam material
-    'I' - The moment of inertia of the beam section
-    'A' - The cross-sectional area of the beam section
-    'J' - The polar moment of inertia of the beam section
-    'nu' - The Poisson's ratio of the beam material
-    'rho' - The density of the beam material   
-    '''
-    G = calc_shear_modulus (nu, E)
-    model = FEModel3D ()
-    model.add_material ('default', E, G, nu, rho)
-    model.add_node ('N0', 0, 0, 0)
-    model.add_node ('N1', b, 0, 0)
-    model.add_node ('N2', b+a, 0, 0)
-    model.def_support ('N0', True, True, True, True, True, False)
-    model.def_support ('N1', False, True, False, False, False, False)
-    model.add_member ('M0', 'N0', 'N2', 'default', Iy=1.0, Iz=I, J=J, A=A)
-    model.add_member_dist_load ('M0','Fy', w1=w, w2=w)
-    return model
-
 
 def read_beam_file (the_filename:str) -> str:
     '''
@@ -109,9 +71,16 @@ def read_beam_file (the_filename:str) -> str:
         UDL Magnitude[, [Load Start], [Load End]] # Lines 3+ ...
         ... # etc.
     '''
+
+    # PREVIOUS:
+    # with open (the_filename) as the_file:
+    #    the_file_data = the_file.read () # returns one big long string of every character in the file
+    
     with open (the_filename) as the_file:
-        the_file_data = the_file.read ()
-    return (the_file_data)
+        the_file_data_LIST = the_file.readlines ()
+        the_file_data_LIST = [each_string.replace('\n', '') for each_string in the_file_data_LIST]
+    return (the_file_data_LIST)
+
 
 
 def separate_lines (the_string: str, the_splitter: str = "\n") -> list:
@@ -122,23 +91,6 @@ def separate_lines (the_string: str, the_splitter: str = "\n") -> list:
     '''
     ret_list = the_string.split (the_splitter)
     return ret_list
-
-
-def extract_data (the_list:list, the_index:int) -> list: # SHOULD BE CALLED EXTRACT_DATA_FROM_SPECIFIED_LINE
-    '''
-    This function extracts a particular line of comma-delimited text (an item in the_list)
-    and returns it as its own list containing a sublist of that line's individual elements.
-    
-    Params:
-    'the_list' - a list of string data
-    'the_index' - the index from where to extract the data from the list (i.e. what line)
-    '''
-    ret_val = separate_lines (the_list [the_index])
-    # The above code returns something like ['4800, 200000, 437000000'] - i.e. a list with only 1 item, but that item is still a comma-delimited string!
-    # We must convert that string to its individual elements and append those to our return list, i.e. ['4800', '200000', '437000000'] - a list with 3 items
-    temp_str = ret_val [0].replace (', ', ',')
-    ret_val = separate_lines (temp_str, the_splitter = ',')
-    return (ret_val)
 
 
 def get_spans (total_beam_length:float, dist_to_cantilever:float) -> tuple [float, float]:
@@ -154,36 +106,137 @@ def get_spans (total_beam_length:float, dist_to_cantilever:float) -> tuple [floa
     return (b, a)
 
 
-def build_beam (this_beam_data:list) -> FEModel3D:
+def build_beam (this_beam_data_DICT:dict, A:float=1.0, J:float=1.0, nu:float=1.0, rho:float=1.0) -> FEModel3D:
     """
-    Returns a beam finite element model for the data in 'beam_data' which is assumed to represent
-    a simply supported beam with a cantilever at one end with a uniform distributed load applied
-    in the direction of gravity.
+    Returns a beam finite element model for the data in 'this_beam_data_DICT' which is assumed to contain:
+    {
+        'Name': <name of beam>,
+        'L': <length>,
+        'E': <elastic modulus of the beam material>,
+        'I': <moment of inertia of the beam section>,
+        'Supports': <a list of support locations, from left to right>,
+        'Loads': <a list of loads acting on the beam; each load is its own list>
+    }
+    
+    This function also takes these additional parameters:
+    'A' - The cross-sectional area of the beam section
+    'J' - The polar moment of inertia of the beam section
+    'nu' - The Poisson's ratio of the beam material
+    'rho' - The density of the beam material
     """
-    LEI = beams.extract_data(this_beam_data, 0) # get the first line in list form
-    L = beams.str_to_float(LEI[0])
-    E = beams.str_to_float(LEI[1])
-    I = beams.str_to_float(LEI[2])
-    #print (LEI)
-    pin_locations = beams.extract_data(this_beam_data, 1)
-    cant_location = beams.str_to_float (pin_locations [1])
-    spans = beams.get_spans (L, cant_location)
-    #print (spans)
+
+    L = this_beam_data_DICT ['L']
+    E = this_beam_data_DICT ['E']
+    I = this_beam_data_DICT ['I']
+    G = calc_shear_modulus (nu, E)
+
+
+    nodes_DICT = {}
+    supports_DICT = {}
+    for i in range (len(this_beam_data_DICT ['Supports'])):
+        nodes_DICT [f"N{i}"] = this_beam_data_DICT ['Supports'][i] # ie {"N0" : 0.0}
+        supports_DICT [f"N{i}"] = this_beam_data_DICT ['Supports'][i]
+
+    #THIS NEXT BIT WASN'T REQUIRED, BUT IT BUGGED ME NOT TO PUT IT IN, SINCE I KNOW SOMETHING LIKE IT WILL BE NECESSARY EVENTUALLY...
+    if this_beam_data_DICT ['Supports'][i] < L: # if cantilever, and therefore no support at far end, add one more node!
+        nodes_DICT [f"N{i+1}"] = L
     
-    # Beam 1
-    w_1 = beams.str_to_float (beams.extract_data(this_beam_data, 2) [0])
-    a_1 = spans [1]
-    b_1 = spans [0]
-    A = 1
-    J = 1
-    nu = 1
-    the_model = beams.fe_model_ss_cant (w_1, b_1, a_1, E, I, A, J, nu)
-    
+    loads_LIST = []
+    for i in range (len(this_beam_data_DICT ['Loads'])):
+        loads_LIST.append (this_beam_data_DICT ['Loads'][i])
+
+    # print (nodes_DICT)
+    # print (supports_DICT)
+    # print (loads_LIST)
+
+    the_model = FEModel3D ()
+    the_model.add_material ('default', E, G, nu, rho)
+
+    for node in nodes_DICT.items ():
+        the_model.add_node (node [0], node [1], 0, 0)
+
+    # MAKING AN ASSUMPTION HERE, THAT THE FIRST SUPPORT IS A PIN, AND ALL THE REST ARE ROLLERS:
+    for support in supports_DICT.items ():
+        if support [0] == "N0":
+            the_model.def_support (support [0], True, True, True, True, True, False)
+        else:
+            the_model.def_support (support [0], False, True, False, False, False, False)
+
+    the_model.add_member ('M0', 'N0', f"N{len(nodes_DICT)-1}", 'default', Iy=1.0, Iz=I, J=J, A=A)
+
+    for load in loads_LIST:
+        the_model.add_member_dist_load ('M0','Fy', w1=load[0], w2=load[0], x1=load[1], x2=load[2]) #member name, Fy, starting load, ending load
+   
     return the_model
 
 
 def load_beam_model (the_filename:str) -> FEModel3D:
-    the_beam_data_STR = beams.read_beam_file (the_filename)
-    the_beam_data_LS = beams.separate_lines (the_beam_data_STR)
-    the_model = build_beam(the_beam_data_LS)
+    the_beam_data_LIST = read_beam_file (the_filename)
+    the_beam_data_LIST = separate_data (the_beam_data_LIST)
+    the_beam_data_DICT = get_structured_beam_data (the_beam_data_LIST)
+    the_model = build_beam(the_beam_data_DICT)
     return the_model
+
+
+def separate_data (the_list:list[str]) -> list [list[str]]:
+    '''
+    This splits up individual lines of comma-separated data into a nested list, so that
+    each comma-separated portion of the string becomes its own item in the sublist that we'll create
+    Parameters:
+        the_list: the list of text lines retrieved from a file
+    '''
+    return_LIST = []
+    for each_string in the_list:
+        temp_LST = []
+        temp_LST = separate_lines (each_string, ",")
+        temp_LST = [sub.strip() for sub in temp_LST]
+        return_LIST.append (temp_LST)
+
+    return return_LIST
+
+
+def convert_to_numeric (outer_LIST:list [list [str]]) -> list [list[float]]:
+    '''
+    This takes a list containing lists of string data, converts those string into floats,
+    then returns the list.
+    '''
+    return_LIST = []
+    for outer_item_LIST in outer_LIST:
+        temp_LST = []
+        for inner_item in outer_item_LIST:
+            temp_LST.append (str_to_float(inner_item))
+        return_LIST.append (temp_LST)
+    return return_LIST
+
+
+def get_structured_beam_data (input_LIST:list [list [str]]) -> dict:
+    '''
+    This converts the file data passed (as a list) into a dictionary and returns that dictionary.
+    outer_LIST - the file data already parsed into nested lists
+
+    
+    Data in the text file is expected in this format:
+        Length, E, I # Line 0
+        Vertical (pin) support locations # Line 1
+        UDL Magnitude[, [Load Start], [Load End]] # Line 2
+        UDL Magnitude[, [Load Start], [Load End]] # Lines 3+ ...
+        ... # etc.
+    '''
+    numeric_data_LIST = convert_to_numeric (input_LIST[1:])
+    output_DICT:dict = {}
+    output_DICT ['Name'] = input_LIST [0] [0]
+    output_DICT ['L'] = numeric_data_LIST [0] [0]
+    output_DICT ['E'] = numeric_data_LIST [0] [1]
+    output_DICT ['I'] = numeric_data_LIST [0] [2]
+    output_DICT ['Supports'] = numeric_data_LIST [1]
+    output_DICT ['Loads'] = numeric_data_LIST [2:]
+    return output_DICT
+
+
+def get_node_locations (support_info_LST:list) -> dict [str:float]:
+    return_DICT = {}
+    idx = 0
+    for node_location in support_info_LST:
+        return_DICT [f"N{idx}"] = node_location
+        idx+=1
+    return return_DICT
