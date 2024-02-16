@@ -4,23 +4,6 @@ from importlib import reload
 reload (beams)
 
 
-def test_str_to_int ():
-    string_1 = "43"
-    string_2 = "2000"
-    assert beams.str_to_int (string_1) == 43
-    assert beams.str_to_int (string_2) == 2000
-   
-
-def test_str_to_float ():
-    string_1 = "43"
-    string_2 = "2000"
-    string_3 = "324.625" # This one should generate a ValueError
-    string_4 = "COLUMN300X300" # This one should generate a ValueError, too
-    assert beams.str_to_float (string_1) == 43.0
-    assert beams.str_to_float (string_2) == 2000.0
-    assert beams.str_to_float (string_3) == 324.625
-   
-
 def test_calc_shear_modulus ():
     E_1 = 200_000
     nu_1 = 0.3
@@ -63,25 +46,9 @@ def test_beam_reactions_ss_cant ():
     assert round (R1_2, 2), round (R2_2, 2)  == (3648.0, 0.0)
    
 
-def test_separate_lines():
-    example_1_data = '4800, 200000, 437000000\n0, 3000\n-10'
-    example_2_data = '228, 28000, 756\n0, 114\n-15'
-    example_3_data = '6800, 200000, 803000000\n0, 3000\n18'
-    example_4_data = '8000, 28000, 756e6\n0, 7000\n-52'
-    assert beams.separate_lines(example_1_data) == ['4800, 200000, 437000000', '0, 3000', '-10']
-    assert beams.separate_lines(example_2_data) == ['228, 28000, 756', '0, 114', '-15']
-    assert beams.separate_lines(example_3_data) == ['6800, 200000, 803000000', '0, 3000', '18']
-    assert beams.separate_lines(example_4_data) == ['8000, 28000, 756e6', '0, 7000', '-52']
-
-
 def test_get_spans ():
     assert beams.get_spans (10, 7) == (7, 3)
     assert beams.get_spans (4000, 2500) == (2500, 1500)
-
-
-def test_separate_data ():
-    example_LIST = ['Roof beam', '4800, 19200, 1000000000', '0, 3000, 4800', '-100, 500, 4800', '-200, 3600, 4800']
-    assert beams.separate_data (example_LIST) == [['Roof beam'], ['4800', '19200', '1000000000'], ['0', '3000', '4800'], ['-100', '500', '4800'], ['-200', '3600', '4800']]
 
 
 def test_convert_to_numeric ():
@@ -108,3 +75,89 @@ def test_get_node_locations ():
         'Supports': [0.0, 3000.0, 4800.0],
         'Loads': [[-100.0, 500.0, 4800.0], [-200.0, 3600.0, 4800.0]]}
     assert beams.get_node_locations (example_DICT['Supports']) == {'N0': 0.0, 'N1': 3000.0, 'N2': 4800.0}
+
+
+def test_parse_supports ():
+    assert beams.parse_supports (['1000:P', '3800:R', '4800:F', '8000:R']) == {1000.0: 'P', 3800.0: 'R', 4800.0: 'F', 8000.0: 'R'}
+
+
+def test_parse_loads ():
+    assert beams.parse_loads ([
+    ['POINT:Fy', -10000.0, 4800.0, 'case:Live'],
+    ['DIST:Fy', 30.0, 30.0, 0.0, 4800.0, 'case:Dead']]) == [
+    {
+        "Type": "Point", 
+        "Direction": "Fy", 
+        "Magnitude": -10000.0, 
+        "Location": 4800.0, 
+        "Case": "Live"
+    },
+    {
+        "Type": "Dist", 
+        "Direction": "Fy",
+        "Start Magnitude": 30.0,
+        "End Magnitude": 30.0,
+        "Start Location": 0.0,
+        "End Location": 4800.0,
+        "Case": "Dead"
+    }]
+
+
+def test_parse_beam_attributes ():
+    assert (beams.parse_beam_attributes ([20e3, 200e3, 6480e6, 390e6, 43900, 11900e3, 0.3])) == {
+        'L': 20000.0,
+        'E': 200000.0,
+        'Iz': 6480000000.0,
+        'Iy': 390000000.0,
+        'A': 43900,
+        'J': 11900000.0,
+        'nu': 0.3,
+        'rho': 1
+    }
+    assert (beams.parse_beam_attributes ([4800, 24500, 1200000000, 10])) == {
+        'L': 4800.0,
+        'E': 24500.0,
+        'Iz': 1200000000.0,
+        'Iy': 10,
+        'A': 1,
+        'J': 1,
+        'nu': 1,
+        'rho': 1
+    }
+
+
+def test_get_node_locations ():
+    assert (beams.get_node_locations (10000.0, [1000.0, 4000.0, 8000.0])) == {'N0': 0.0, 'N1': 1000.0, 'N2': 4000.0, 'N3': 8000.0, 'N4': 10000.0}
+    assert (beams.get_node_locations (210.0, [0.0, 210.0])) == {'N0': 0.0, 'N2': 210.0}
+
+
+def test_get_structured_beam_data ():
+    assert (beams.get_structured_beam_data (
+        [
+            ['Balcony transfer'],
+            ['4800', '24500', '1200000000', '1', '1'],
+            ['1000:P', '3800:R'],
+            ['POINT:Fy', '-10000', '4800', 'case:Live'],
+            ['DIST:Fy', '30', '30', '0', '4800', 'case:Dead']
+        ])) == {'Name': 'Balcony transfer',
+    'L': 4800.0,
+    'E': 24500.0,
+    'Iz': 1200000000.0,
+    'Iy': 1.0,
+    'A': 1.0,
+    'J': 1,
+    'nu': 1,
+    'rho': 1,
+    'Supports': {1000.0: 'P', 3800.0: 'R'},
+    'Loads': [{'Type': 'Point',
+    'Direction': 'Fy',
+    'Magnitude': -10000.0,
+    'Location': 4800.0,
+    'Case': 'Live'},
+    {'Type': 'Dist',
+    'Direction': 'Fy',
+    'Start Magnitude': 30.0,
+    'End Magnitude': 30.0,
+    'Start Location': 0.0,
+    'End Location': 4800.0,
+    'Case': 'Dead'}]}
